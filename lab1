@@ -1,0 +1,294 @@
+mainwindow.cpp
+#include "mainwindow.h"
+#include "qgraphicsview.h"
+#include "qlineedit.h"
+#include "qpushbutton.h"
+#include <QGraphicsScene>
+#include <QGraphicsTextItem>
+#include <QGraphicsEllipseItem>
+#include <QGraphicsRectItem>
+#include <QPen>
+#include <QColorDialog>
+#include <QLabel>
+#include <QCheckBox>
+#include <cmath>
+#include<QMessageBox>
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+{
+    setupUi();
+    drawCoordinateSystem();
+}
+
+MainWindow::~MainWindow()
+{
+}
+
+void MainWindow::setupUi()
+{
+    setWindowTitle("Coordinate System with Triangles");
+
+    scene = new QGraphicsScene(this);
+
+    view = new QGraphicsView(scene, this);
+    setCentralWidget(view);
+
+    QLabel *labelX1 = new QLabel("X1:", this);
+    labelX1->move(20, 20);
+
+    lineEditX1 = new QLineEdit("140", this);
+    lineEditX1->setValidator(new QIntValidator(-500, 500, this));
+
+    lineEditX1->move(40, 20);
+
+    QLabel *labelY1 = new QLabel("Y1:", this);
+    labelY1->move(150, 20);
+
+    lineEditY1 = new QLineEdit("70",this);
+    lineEditY1->setValidator(new QIntValidator(-500, 500, this));
+    lineEditY1->move(170, 20);
+
+    QLabel *labelX2 = new QLabel("X2:", this);
+    labelX2->move(20, 80);
+
+    lineEditX2 = new QLineEdit("59", this);
+    lineEditX2->setValidator(new QIntValidator(-500, 500, this));
+    lineEditX2->move(40, 80);
+
+    QLabel *labelY2 = new QLabel("Y2:", this);
+    labelY2->move(150, 80);
+
+    lineEditY2 = new QLineEdit("76",this);
+    lineEditY2->setValidator(new QIntValidator(-500, 500, this));
+    lineEditY2->move(170, 80);
+
+
+    drawButton = new QPushButton("Draw Triangle", this);
+    drawButton->move(300, 20);
+    connect(drawButton, SIGNAL(clicked()), this, SLOT(drawTriangle()));
+
+    colorButton = new QPushButton("Select Color", this);
+    colorButton->move(450, 20);
+    connect(colorButton, SIGNAL(clicked()), this, SLOT(onColorChanged()));
+
+    showVerticesCheckBox = new QCheckBox("Show Vertices", this);
+    showVerticesCheckBox->setChecked(true);
+    showVerticesCheckBox->move(600, 20);
+    connect(showVerticesCheckBox, SIGNAL(toggled(bool)), this, SLOT(onShowVerticesToggled(bool)));
+
+    useCircleVerticesCheckBox = new QCheckBox("Circular Vertices", this);
+    useCircleVerticesCheckBox->setChecked(true);
+    useCircleVerticesCheckBox->move(600, 50);
+    connect(useCircleVerticesCheckBox, SIGNAL(toggled(bool)), this, SLOT(onVertexTypeChanged()));
+
+    useSquareVerticesCheckBox = new QCheckBox("Square Vertices", this);
+    useSquareVerticesCheckBox->move(600, 80);
+    connect(useSquareVerticesCheckBox, SIGNAL(toggled(bool)), this, SLOT(onVertexTypeChanged()));
+
+    useSimpleVerticesCheckBox = new QCheckBox("Simple Vertices", this);
+    useSimpleVerticesCheckBox->move(600, 110);
+    connect(useSimpleVerticesCheckBox, SIGNAL(toggled(bool)), this, SLOT(onVertexTypeChanged()));
+}
+
+void MainWindow::drawCoordinateSystem()
+{
+    QPen pen(Qt::black);
+    int width = 700;
+    int height = 500;
+    int halfWidth = width / 2;
+    int halfHeight = height / 2;
+    scene->addLine(0, -halfHeight, 0, halfHeight, pen);
+    scene->addLine(-halfWidth, 0, halfWidth, 0, pen);
+
+    QPolygonF xArrow;
+    xArrow << QPointF(halfWidth, 0)
+           << QPointF(halfWidth - 10, -5)
+           << QPointF(halfWidth - 10, 5);
+    scene->addPolygon(xArrow, pen);
+    QPolygonF yArrow;
+    yArrow << QPointF(0, -halfHeight)
+           << QPointF(5, -halfHeight + 10)
+           << QPointF(-5, -halfHeight + 10);
+    scene->addPolygon(yArrow, pen);
+    QGraphicsTextItem *textX = new QGraphicsTextItem("X");
+    textX->setPos(halfWidth - 20, 20);
+    scene->addItem(textX);
+
+    QGraphicsTextItem *textY = new QGraphicsTextItem("Y");
+    textY->setPos(20, -halfHeight + 20);
+    scene->addItem(textY);
+
+    QGraphicsTextItem *text0 = new QGraphicsTextItem("0");
+    text0->setPos(0, 0);
+    scene->addItem(text0);
+
+    // Drawing unit segment
+    QPointF unitSegmentStart(0, 0);
+    QPointF unitSegmentEnd(1, 0);
+    drawLine(unitSegmentStart, unitSegmentEnd, Qt::blue);
+}
+
+void MainWindow::drawLine(QPointF p1, QPointF p2, QColor color)
+{
+    QPen pen(color);
+    scene->addLine(p1.x(), -p1.y(), p2.x(), -p2.y(), pen);
+}
+
+
+void MainWindow::drawTriangle()
+{
+    double x1 = lineEditX1->text().toDouble();
+    double y1 = lineEditY1->text().toDouble();
+    double x2 = lineEditX2->text().toDouble();
+    double y2 = lineEditY2->text().toDouble();
+
+    if (lineEditX1->text().isEmpty() || lineEditY1->text().isEmpty() ||
+        lineEditX2->text().isEmpty() || lineEditY2->text().isEmpty()) {
+        QMessageBox::critical(this, "Error", "Please fill in all the fields.");
+        return;
+    }
+
+
+    if (x1 > 500 || y1 > 500 || x2 > 500 || y2 > 500) {
+        QMessageBox::critical(this, "Error", "Coordinates cannot exceed 500.");
+        return;
+    }
+
+    QColor fillColor = QColorDialog::getColor(Qt::red, this, "Choose Fill Color");
+
+    QPointF p1(x1, -y1);
+    QPointF p2(x2, -y2);
+    QPointF p3 = calculateThirdPoint(p1, p2);
+
+    drawTriangle(p1, p2, p3, fillColor, showVerticesCheckBox->isChecked());
+}
+
+void MainWindow::drawTriangle(QPointF p1, QPointF p2, QPointF p3, QColor color, bool showVertices)
+{
+    QGraphicsPolygonItem *triangle = new QGraphicsPolygonItem();
+    QPolygonF polygon;
+    polygon << p3 << p2 << p1;
+    triangle->setPolygon(polygon);
+    triangle->setBrush(QBrush(color));
+    scene->addItem(triangle);
+
+    if (showVertices) {
+        QPointF displayP1(p1.x(), p1.y());
+        QPointF displayP2(p2.x(), p2.y());
+        QPointF displayP3(p3.x(), p3.y());
+
+        if (useCircleVerticesCheckBox->isChecked()) {
+            scene->addEllipse(displayP1.x() - 5, displayP1.y() - 5, 10, 10, QPen(), QBrush(Qt::black));
+            scene->addEllipse(displayP2.x() - 5, displayP2.y() - 5, 10, 10, QPen(), QBrush(Qt::black));
+            scene->addEllipse(displayP3.x() - 5, displayP3.y() - 5, 10, 10, QPen(), QBrush(Qt::black));
+        } else if (useSquareVerticesCheckBox->isChecked()) {
+            scene->addRect(displayP1.x() - 5, displayP1.y() - 5, 10, 10, QPen(), QBrush(Qt::black));
+            scene->addRect(displayP2.x() - 5, displayP2.y() - 5, 10, 10, QPen(), QBrush(Qt::black));
+            scene->addRect(displayP3.x() - 5, displayP3.y() - 5, 10, 10, QPen(), QBrush(Qt::black));
+        } else if (useSimpleVerticesCheckBox->isChecked()) {
+            scene->addEllipse(displayP1.x() - 2, displayP1.y() - 2, 4, 4, QPen(), QBrush(Qt::black));
+            scene->addEllipse(displayP2.x() - 2, displayP2.y() - 2, 4, 4, QPen(), QBrush(Qt::black));
+            scene->addEllipse(displayP3.x() - 2, displayP3.y() - 2, 4, 4, QPen(), QBrush(Qt::black));
+        }
+    }
+}
+
+void MainWindow::onColorChanged()
+{
+    QColor color = QColorDialog::getColor(Qt::red, this, "Select Color");
+    if (color.isValid()) {
+
+    }
+}
+
+void MainWindow::onShowVerticesToggled(bool checked)
+{
+    for (QGraphicsItem *item : scene->items()) {
+        item->setVisible(checked);
+    }
+}
+
+void MainWindow::onVertexTypeChanged()
+{
+    onShowVerticesToggled(showVerticesCheckBox->isChecked());
+}
+
+QPointF MainWindow::calculateThirdPoint(QPointF p1, QPointF p2)
+{
+    double length = std::sqrt(3) / 2 * 80;
+    double dx = (p2.x() - p1.x()) / 2;
+    double dy = (p2.y() - p1.y()) / 2;
+
+    double centerX = p1.x() + dx;
+    double centerY = p1.y() + dy;
+
+    double thirdX = centerX + dy * length / 50;
+    double thirdY = centerY - dx * length / 50;
+
+    return QPointF(thirdX, thirdY);
+}
+
+
+mainwindow.h
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
+#include <QMainWindow>
+#include <QPointF>
+#include <QColor>
+#include<QDoubleValidator>
+#include<QColorDialog>
+#include<QRadioButton>
+#include<QLabel>
+#include<QLineEdit>
+class QGraphicsScene;
+class QGraphicsView;
+class QLineEdit;
+class QPushButton;
+class QCheckBox;
+
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
+
+public:
+    MainWindow(QWidget *parent = nullptr);
+    ~MainWindow();
+
+private slots:
+    void drawTriangle();
+    void onColorChanged();
+    void onShowVerticesToggled(bool checked);
+
+private:
+    void setupUi();
+    void drawCoordinateSystem();
+    QPointF calculateThirdPoint(QPointF p1, QPointF p2);
+    void drawTriangle(QPointF p1, QPointF p2, QPointF p3, QColor color, bool showVertices);
+    bool useCircleVertices = true;
+
+
+    QCheckBox* useCircleVerticesCheckBox;
+    void onVertexTypeChanged();
+    QCheckBox * useSquareVerticesCheckBox;
+    QCheckBox *showVerticesCheckBox;
+    QGraphicsScene *scene;
+    QGraphicsView *view;
+    QLineEdit *lineEditX1;
+    QLineEdit *lineEditY1;
+    QLineEdit *lineEditX2;
+    QLineEdit *lineEditY2;
+    QPushButton *drawButton;
+    QPushButton *colorButton;
+    QLineEdit *lineEditSideLength;
+    QLabel * labelSideLength;
+    QCheckBox * useSimpleVerticesCheckBox;
+    int currentVertexType;
+    void drawLine(QPointF p1, QPointF p2, QColor color);
+
+    QPointF startPoint;
+    QPointF endPoint;
+
+};
+
+#endif // MAINWINDOW_H
